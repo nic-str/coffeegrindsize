@@ -413,10 +413,11 @@ class coffeegrindsize_GUI:
 		self.options_row += 1
 		
 		#Simplified versions of zoom buttons
-		self.simple_zoom_in_button = Button(self.simple_frame_options, text="Zoom In", command=self.zoom_in_button)
+		self.simple_zoom_in_button = Button(self.simple_frame_options, text="Zoom In", command=self.zoom_in_action)
 		self.simple_zoom_in_button.grid(row=self.simple_options_row, column=0, columnspan=1, sticky=E)
+
 		
-		self.simple_zoom_out_button = Button(self.simple_frame_options, text="Zoom Out", command=self.zoom_out_button)
+		self.simple_zoom_out_button = Button(self.simple_frame_options, text="Zoom Out", command=self.zoom_out_action)
 		self.simple_zoom_out_button.grid(row=self.simple_options_row, column=1, columnspan=1, sticky=W)
 		
 		self.simple_reset_zoom_button = Button(self.simple_frame_options, text="Reset View", command=self.reset_zoom)
@@ -685,8 +686,7 @@ class coffeegrindsize_GUI:
 		
 		#Set up key bindings for zooming in and out with the i/o keys
 		self.image_canvas.bind_all("<Command-i>", self.zoom_in)
-		self.image_canvas.bind_all("<Command-o>", self.zoom_out
-			)
+		self.image_canvas.bind_all("<Command-o>", self.zoom_out)
 		
 		#Various shortcuts
 		self.master.bind_all("<Command-m>", self.open_image)
@@ -1023,8 +1023,8 @@ class coffeegrindsize_GUI:
 			self.scale = 1
 			
 			#Deactivate zoom buttons
-			self.zoom_in_button.config(state=DISABLED)
-			self.zoom_out_button.config(state=DISABLED)
+			self.simple_zoom_in_button.config(state=DISABLED)
+			self.simple_zoom_out_button.config(state=DISABLED)
 			self.reset_zoom_button.config(state=DISABLED)
 			
 		#If we are moving out from histogram display
@@ -1034,8 +1034,8 @@ class coffeegrindsize_GUI:
 				self.scale = self.original_scale
 				
 				#Reactivate zoom buttons
-				self.zoom_in_button.config(state=NORMAL)
-				self.zoom_out_button.config(state=NORMAL)
+				self.simple_zoom_in_button.config(state=NORMAL)
+				self.simple_zoom_out_button.config(state=NORMAL)
 				self.reset_zoom_button.config(state=NORMAL)
 		
 		#Redraw the selected image
@@ -1562,7 +1562,7 @@ class coffeegrindsize_GUI:
 
 	
 	#Method to apply a zoom in with the button
-	def zoom_in_button(self):
+	def zoom_in_action(self):
 
 		#Artificially set the mouse position at the image center
 		self.mouse_x, self.mouse_y = self.last_image_x, self.last_image_x
@@ -1571,7 +1571,7 @@ class coffeegrindsize_GUI:
 		self.zoom(None, 1)
 	
 	#Method to apply a zoom out with the button
-	def zoom_out_button(self):
+	def zoom_out_action(self):
 		
 		#Artificially set the mouse position at the image center
 		self.mouse_x, self.mouse_y = self.last_image_x, self.last_image_x
@@ -1764,7 +1764,7 @@ class coffeegrindsize_GUI:
 		self.original_scale *= 2
 		
 		#Resize image
-		self.img_source = self.img_source.resize((int(float(self.img.size[0])/2),int(float(self.img.size[1])/2)), Image.ANTIALIAS)
+		self.img_source = self.img_source.resize((int(float(self.img.size[0])/2),int(float(self.img.size[1])/2)), Image.Resampling.LANCZOS)
 		self.img = self.img_source
 		
 		#Redraw the image
@@ -1912,7 +1912,7 @@ class coffeegrindsize_GUI:
 			contained = poly.contains_points(pts)
 			
 			#If no points are in the polygon then break with an error
-			if np.max(contained) is False:
+			if contained.size == 0:
 				
 				#Refresh the user interface status
 				self.status_var.set("No Image Pixels were Located Inside of the Analysis Region")
@@ -1936,9 +1936,9 @@ class coffeegrindsize_GUI:
 			
 			pts = np.vstack((self.mask_threshold[1], self.mask_threshold[0])).T
 			contained = poly.contains_points(pts)
-			
+
 			#If no points are in the polygon then break with an error
-			if np.max(contained) is False:
+			if contained.size == 0:
 				
 				#Refresh the user interface status
 				self.status_var.set("No Thresholded Pixels were Located Inside of the Analysis Region")
@@ -2969,14 +2969,16 @@ class coffeegrindsize_GUI:
 		fig.canvas.draw()
 		
 		#Tranform the figure in a numpy array
-		figdata = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-		figdata = figdata.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+		figdata = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8)
+		figdata = figdata.reshape(fig.canvas.get_width_height()[::-1] + (4,))
 		
 		#Read the shape of the numpy array
 		fw, fh, fd = figdata.shape
+
+		figdata_rgb = np.ascontiguousarray(figdata[:, :, 1:])
 		
 		#Transform numpy array in a PIL image
-		self.img_histogram = Image.frombytes("RGB", (fh, fw), figdata)
+		self.img_histogram = Image.frombytes("RGB", (fh, fw), figdata_rgb)
 		
 		#Set the cluster map image as the currently plotted object
 		self.display_type.set(histogram_image_display_name)
